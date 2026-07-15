@@ -21,3 +21,12 @@
 * 4.18.0
 * 4.19.0
 * 4.20.0
+
+## Out of which, a PANIC-less soundness bug is known in
+
+* 4.14.0
+* 4.15.0
+* 4.16.0
+* 4.17.0
+* 4.18.0
+* 4.19.0
