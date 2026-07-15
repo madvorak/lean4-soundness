@@ -1,72 +1,36 @@
--- Mario Carneiro found this bug.
--- https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/Soundness.20bug.3A.20hasLooseBVars.20is.20not.20conservative/near/521286338
+-- I am not the author.
+-- https://github.com/leanprover/lean4/pull/8060
 import Lean
-open Lean
 
-def isProp.{u} : Prop :=
-  ∀ (x : Sort u) (y z : x), y = z
+def g.{u} : PUnit.{u} → Nat := fun _ => open Classical in if Type = Type then 0 else 0
 
-theorem isProp_prop : isProp.{0} :=
-  fun _ _ _ => rfl
+def T : Nat → Prop := (if · = 0 then False else True)
 
-theorem not_isProp_type : ¬ isProp.{1} :=
-  (nomatch · _ 0 1)
+def POW := Nat.pow (g.{0} ⟨⟩) 1
 
-theorem isProp_not_invariant : isProp.{0} ≠ isProp.{1} :=
-  mt (cast · isProp_prop) not_isProp_type
+elab "#inject_bad_proof" : command => do
+  let decl : Lean.Declaration := .defnDecl {
+      name := `mythm,
+      hints := .regular 0,
+      safety := .safe,
+      type := (.app (.const `T []) (.const `POW [])),
+      levelParams := [],
+      value := (.const `True.intro [])
+    }
+  Lean.Elab.Command.liftCoreM (Lean.addDecl decl)
 
-def mkLevel : Nat → Level → Level
-| 0, e => e
-| Nat.succ n, e => mkLevel n (.max .zero e)
+-- Crashes if GMP is disabled
+#inject_bad_proof
 
-open Lean Elab Command
+theorem g_eq_zero {n : PUnit} : g.{u} n = 0 := by
+  unfold g
+  split <;> rfl
 
-elab "add_magic" : command => do
-  let l := mkLevel (2^24) (.param `u)
-  liftCoreM <|
-    Lean.addDecl <|
-      Declaration.defnDecl {
-        name := `magic
-        levelParams := []
-        type := Expr.sort Level.zero
-        value := Expr.const `isProp [l]
-        hints := ReducibilityHints.opaque
-        safety := DefinitionSafety.safe
-      }
+theorem show_false : False := by
+  change T (Nat.pow 0 1)
+  exact g_eq_zero ▸ mythm
 
-add_magic
-
-elab "add_magic_eq" : command => do
-  liftCoreM do
-    Lean.addDecl <|
-      Declaration.defnDecl {
-        toConstantVal := {
-          name := `magic_eq
-          levelParams := [`u]
-          type :=
-            mkApp3
-              (mkConst ``Eq [levelOne])
-              (Expr.sort Level.zero)
-              (Expr.const `magic [])
-              (Expr.const `isProp [.param `u])
-        }
-        value :=
-          mkApp2
-            (mkConst ``Eq.refl [levelOne])
-            (Expr.sort Level.zero)
-            (Expr.const `magic [])
-        hints := ReducibilityHints.opaque
-        safety := DefinitionSafety.safe
-        all := [`magic_eq]
-      }
-
-add_magic_eq
-
-theorem contradiction : False :=
-  isProp_not_invariant
-    (magic_eq.{0}.symm.trans magic_eq.{1})
-
-#print axioms contradiction
+#print axioms show_false
 
 example : 1 + 1 = 3 :=
-  contradiction.elim
+  show_false.elim
