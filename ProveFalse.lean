@@ -19,7 +19,6 @@ elab "#inject_bad_proof" : command => do
     }
   Lean.Elab.Command.liftCoreM (Lean.addDecl decl)
 
--- Crashes if GMP is disabled
 #inject_bad_proof
 
 theorem g_eq_zero {n : PUnit} : g.{u} n = 0 := by
