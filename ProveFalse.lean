@@ -3,27 +3,29 @@
 import Lean
 open Lean
 
-def isProp.{u} : Prop := ∀ (x : Sort u) (y z : x), y = z
+def isProp.{u} : Prop :=
+  ∀ s : Sort u, ∀ x y : s, x = y
 
-theorem isProp_prop : isProp.{0} := fun _ _ _ => rfl
+theorem isProp_prop : isProp.{0} :=
+  fun _ _ _ => rfl
 
-theorem not_isProp_type : ¬isProp.{1} := (nomatch · _ 0 1)
+theorem not_isProp_type : ¬isProp.{1} :=
+  (nomatch · _ 0 1)
 
 theorem isProp_not_invariant : isProp.{0} ≠ isProp.{1} :=
   mt (cast · isProp_prop) not_isProp_type
 
 def mkLevel : Nat → Level → Level
   | 0  , e => e
-  | n+1, e => mkLevel n (.max .zero e)
+  | n+1, e => mkLevel n (.max 0 e)
 
 #guard_msgs(drop all) in
 run_elab
-  let l := mkLevel (2^24) (.param `u)
   Lean.addDecl <| .defnDecl {
     name := `magic
     levelParams := []
     type := .sort .zero
-    value := .const `isProp [l]
+    value := .const `isProp [mkLevel (2^24) (.param `u)]
     hints := .opaque
     safety := .safe
   }
