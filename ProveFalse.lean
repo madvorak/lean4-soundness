@@ -33,7 +33,7 @@ elab "add_magic" : command => do
         hints := ReducibilityHints.opaque
         safety := DefinitionSafety.safe
       }
-
+/-
 add_magic
 
 elab "add_magic_eq" : command => do
@@ -70,3 +70,4 @@ theorem contradiction : False :=
 
 example : 1 + 1 = 3 :=
   contradiction.elim
+-/
