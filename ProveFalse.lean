@@ -1,35 +1,47 @@
--- I am not the author.
--- https://github.com/leanprover/lean4/pull/8060
+-- Mario Carneiro found this bug.
+-- https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/Soundness.20bug.3A.20hasLooseBVars.20is.20not.20conservative/near/521286338
 import Lean
+open Lean
 
-def g.{u} : PUnit.{u} → Nat := fun _ => open Classical in if Type = Type then 0 else 0
+def isProp.{u} : Prop := ∀ (x : Sort u) (y z : x), y = z
 
-def T : Nat → Prop := (if · = 0 then False else True)
+theorem isProp_prop : isProp.{0} := fun _ _ _ => rfl
 
-def POW := Nat.pow (g.{0} ⟨⟩) 1
+theorem not_isProp_type : ¬isProp.{1} := (nomatch · _ 0 1)
 
-elab "#inject_bad_proof" : command => do
-  let decl : Lean.Declaration := .defnDecl {
-      name := `mythm,
-      hints := .regular 0,
-      safety := .safe,
-      type := (.app (.const `T []) (.const `POW [])),
-      levelParams := [],
-      value := (.const `True.intro [])
-    }
-  Lean.Elab.Command.liftCoreM (Lean.addDecl decl)
+theorem isProp_not_invariant : isProp.{0} ≠ isProp.{1} :=
+  mt (cast · isProp_prop) not_isProp_type
 
-#inject_bad_proof
+def mkLevel : Nat → Level → Level
+  | 0  , e => e
+  | n+1, e => mkLevel n (.max .zero e)
 
-theorem g_eq_zero {n : PUnit} : g.{u} n = 0 := by
-  unfold g
-  split <;> rfl
+#guard_msgs(drop all) in
+run_elab
+  let l := mkLevel (2^24) (.param `u)
+  Lean.addDecl <| .defnDecl {
+    name := `magic
+    levelParams := []
+    type := .sort .zero
+    value := .const `isProp [l]
+    hints := .opaque
+    safety := .safe
+  }
 
-theorem show_false : False := by
-  change T (Nat.pow 0 1)
-  exact g_eq_zero ▸ mythm
+run_elab
+  Lean.addDecl <| .defnDecl {
+    name := `magic_eq
+    levelParams := [`u]
+    type := mkPropEq (.const `magic []) (.const `isProp [.param `u])
+    value := mkApp2 (mkConst ``Eq.refl [levelOne]) (.sort .zero) (.const `magic [])
+    hints := .opaque
+    safety := .safe
+  }
 
-#print axioms show_false
+theorem contradictio : False :=
+  isProp_not_invariant (magic_eq.{0}.symm.trans magic_eq.{1})
+
+#print axioms contradictio
 
 example : 1 + 1 = 3 :=
-  show_false.elim
+  contradictio.elim
