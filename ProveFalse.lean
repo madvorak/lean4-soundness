@@ -10,10 +10,10 @@ theorem isProp_prop : isProp.{0} :=
   fun _ _ _ => rfl
 
 theorem not_isProp_type : ¬ isProp.{1} :=
-  fun h => nomatch h _ 0 1
+  (nomatch · _ 0 1)
 
 theorem isProp_not_invariant : isProp.{0} ≠ isProp.{1} :=
-  mt (fun h => cast h isProp_prop) not_isProp_type
+  mt (cast · isProp_prop) not_isProp_type
 
 def mkLevel : Nat → Level → Level
 | 0, e => e
@@ -23,7 +23,6 @@ open Lean Elab Command
 
 elab "add_magic" : command => do
   let l := mkLevel (2^24) (.param `u)
-
   liftCoreM <|
     Lean.addDecl <|
       Declaration.defnDecl {
@@ -63,13 +62,11 @@ elab "add_magic_eq" : command => do
 
 add_magic_eq
 
-universe u
-
-example : magic = isProp.{u} :=
-  magic_eq.{u}
-
 theorem contradiction : False :=
   isProp_not_invariant
     (magic_eq.{0}.symm.trans magic_eq.{1})
 
 #print axioms contradiction
+
+example : 1 + 1 = 3 :=
+  contradiction.elim
