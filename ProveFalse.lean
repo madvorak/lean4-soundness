@@ -10,9 +10,11 @@ inductive L (α : Type) (b : Bool) : Type where | mk
 inductive T : Bool → Prop where | mk : T true
 
 def pad (e : Expr) (n : Nat) : Expr :=
-  mkApp (mkLambda `x .default (mkConst ``Nat) e) (.lit (.natVal n))
+  let a : Expr := (Lean.Expr.lam `x (Lean.mkConst ``Nat) e Lean.BinderInfo.default)
+  let b : Expr := (Lean.Expr.lit (Lean.Literal.natVal n))
+  Expr.app a b
 
-meta def build : CommandElabM Unit := do
+def build : CommandElabM Unit := do
   let f := pad (mkConst ``Bool.false) 78670
   let t := pad (mkConst ``Bool.true) 24083
   unless f.hash == t.hash && f.approxDepth == t.approxDepth do
