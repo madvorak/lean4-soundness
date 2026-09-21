@@ -1,69 +1,66 @@
--- Ramana Kumar discovered this bug.
--- https://github.com/leanprover/lean4/issues/14576
-import Lean
-open Lean Elab Command
+-- https://github.com/leanprover/lean4/pull/14807/
+-- https://gitlab.com/-/snippets/6035570
 
-inductive P : Prop where | mk (b : Bool)
-structure C where b : Bool
-inductive W : Type where | mk (p : P)
-inductive L (α : Type) (b : Bool) : Type where | mk
-inductive T : Bool → Prop where | mk : T true
+instance True_setoid : Setoid True where
+  r := (· = ·)
+  iseqv.refl _ := rfl
+  iseqv.symm _ := rfl
+  iseqv.trans _ _ := rfl
 
-def pad (e : Expr) (n : Nat) : Expr :=
-  let a : Expr := (Lean.Expr.lam `x (Lean.mkConst ``Nat) e Lean.BinderInfo.default)
-  let b : Expr := (Lean.Expr.lit (Lean.Literal.natVal n))
-  Expr.app a b
+def True_mod_eq := Quotient True_setoid
 
-def build : CommandElabM Unit := do
-  let f := pad (mkConst ``Bool.false) 78670
-  let t := pad (mkConst ``Bool.true) 24083
-  unless f.hash == t.hash && f.approxDepth == t.approxDepth do
-    throwError "hash collision failed"
-  let fw := mkApp (mkConst ``W.mk) (mkApp (mkConst ``P.mk) f)
-  let tw := mkApp (mkConst ``W.mk) (mkApp (mkConst ``P.mk) t)
-  let w := mkBVar 0
-  let Ew := mkApp (mkConst `E) w
-  let b := mkProj ``C 0 (mkProj ``C 0 w)
-  let l := mkApp2 (mkConst ``L) Ew b
-  let Et := mkForall `w .default (mkConst ``W) (mkSort 1)
-  let ct := mkForall `w .default (mkConst ``W) <|
-    mkForall `l .default l (mkApp (mkConst `E) (mkBVar 1))
-  liftCoreM <| addDecl <| .inductDecl [] 1 [{
-    name := `E, type := Et, ctors := [{ name := `E.mk, type := ct }] }] false
-  let Et := mkApp (mkConst `E) tw
-  let l := mkApp2 (mkConst ``L.mk) Et (mkConst ``Bool.true)
-  liftCoreM <| addDecl <| .defnDecl {
-    name := `e, levelParams := [], type := Et,
-    value := mkApp2 (mkConst `E.mk) tw l,
-    hints := .abbrev, safety := .safe }
-  liftCoreM <| addDecl <| .defnDecl {
-    name := `good', levelParams := [],
-    type := mkApp (mkConst ``T) t, value := mkConst ``T.mk,
-    hints := .abbrev, safety := .safe }
-  let Ef := mkApp (mkConst `E) fw
-  let Et := mkApp (mkConst `E) tw
-  let a := mkApp2 (mkConst `E.mk) fw (mkProj `E 0 (mkConst `e))
-  let tl := mkApp2 (mkConst ``L.mk) Et (mkConst ``Bool.true)
-  let b := mkApp2 (mkConst `E.mk) tw tl
-  let cT := mkApp2 (mkConst ``L) Et t
-  let c := mkApp (mkLambda `l .default cT (mkConst ``Unit.unit)) tl
-  let fl := mkApp2 (mkConst ``L.mk) Ef f
-  let d := mkApp2 (mkConst `E.mk) fw fl
-  let v := Expr.letE `a Ef a
-    (.letE `b Et b
-      (.letE `c (mkConst ``Unit) c
-        (.letE `d Ef d (mkConst `good') true) true) true) true
-  liftCoreM <| addDecl <| .thmDecl {
-    name := `bad, levelParams := [],
-    type := mkApp (mkConst ``T) f, value := v }
+set_option linter.defProp false
 
-elab "mkbug" : command => build
-mkbug
+def img_true : True_mod_eq := Quot.mk (· = ·) trivial
 
-theorem contradictio : False :=
-  nomatch (bad : T false)
+opaque opaque_img_true : True_mod_eq := img_true
 
-#print axioms contradictio
+def mk42 (e : True_mod_eq) : Nat := Quot.lift (fun _ => 42) (fun _ _ _ => rfl) e
 
-example : 1 + 1 = 3 :=
-  contradictio.elim
+def a := mk42 img_true
+def b := mk42 opaque_img_true
+def c := 42
+
+def P : Prop := a = b
+def Q : Prop := c = b
+
+#check (fun (_ : P) => rfl : forall p:P, p = rfl)
+
+opaque q : Q := by
+  unfold Q
+  have e : c = a := by rfl
+  rw [e]
+  rfl
+
+def prop_if_h_DEFEQ_rfl (h : P) : Type :=
+  Eq.rec (motive := fun _ _ => Type) Prop h
+
+inductive I : forall (h : P), prop_if_h_DEFEQ_rfl h where
+| mk : forall (h : P), Bool -> I h
+
+def asProp : forall (_ : P), Sort 0 := λ (h : P) => I h
+def Yes_Iq_is_a_Prop : Sort 0 := asProp q
+
+def observe : forall (_h : Yes_Iq_is_a_Prop), Bool :=
+  fun (h : Yes_Iq_is_a_Prop) =>
+    by
+      unfold Yes_Iq_is_a_Prop asProp at h
+      exact (h.1)
+
+def mkI : forall (p : P), Bool -> I p := fun p b => .mk p b
+def mkI_of_true : Yes_Iq_is_a_Prop := mkI q true
+def mkI_of_false : Yes_Iq_is_a_Prop := mkI q false
+
+theorem true_eq_false : true = false := by
+  have h : (true = observe mkI_of_true) := by rfl
+  have h' : (mkI_of_true = mkI_of_false) := by rfl
+  rw [h]
+  rw [h']
+  rfl
+
+def big_bool_elim (b : Bool) := Bool.rec (motive := fun _ => Prop) False True b
+
+theorem boom : False :=
+  @Eq.rec Bool true (motive := fun b _ => big_bool_elim b) True.intro false true_eq_false
+
+#print axioms boom
