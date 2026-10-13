@@ -10,9 +10,7 @@ inductive L (α : Type) (b : Bool) : Type where | mk
 inductive T : Bool → Prop where | mk : T true
 
 def pad (e : Expr) (n : Nat) : Expr :=
-  let a : Expr := (Lean.Expr.lam `x (Lean.mkConst ``Nat) e Lean.BinderInfo.default)
-  let b : Expr := (Lean.Expr.lit (Lean.Literal.natVal n))
-  Expr.app a b
+  mkApp (mkLambda `x .default (mkConst ``Nat) e) (.lit (.natVal n))
 
 def build : CommandElabM Unit := do
   let f := pad (mkConst ``Bool.false) 78670
